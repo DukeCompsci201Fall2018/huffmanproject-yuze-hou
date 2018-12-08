@@ -1,3 +1,4 @@
+import java.util.*;
 
 /**
  * Although this class has a history of several years,
@@ -49,6 +50,9 @@ public class HuffProcessor {
 		}
 		out.close();
 	}
+	
+	
+	
 	/**
 	 * Decompresses a file. Output file must be identical bit-by-bit to the
 	 * original.
@@ -59,12 +63,87 @@ public class HuffProcessor {
 	 *            Buffered bit stream writing to the output file.
 	 */
 	public void decompress(BitInputStream in, BitOutputStream out){
-
-		while (true){
-			int val = in.readBits(BITS_PER_WORD);
-			if (val == -1) break;
-			out.writeBits(BITS_PER_WORD, val);
+//		while (true){
+//			int val = in.readBits(BITS_PER_WORD);
+//			if (val == -1) break;
+//			out.writeBits(BITS_PER_WORD, val);
+//		}
+		
+		int bits = in.readBits(BITS_PER_INT);
+		if(bits != HUFF_TREE) {
+			throw new HuffException("illegal header starts with " + bits);
 		}
+		
+		HuffNode root = readTreeHeader(in);
+		readCompressedBits(root, in, out);
 		out.close();
 	}
+	
+
+	public HuffNode readTreeHeader(BitInputStream in) {
+		int bits = in.readBits(1);		
+		int value;
+		if(bits == -1) {
+			throw new HuffException("illegal header starts with " + bits);
+		}		
+		if(bits == 0) {			
+			HuffNode Left = readTreeHeader(in);
+			HuffNode Right = readTreeHeader(in);
+			return new HuffNode(0, 0, Left, Right);
+		}
+		else {
+			value = in.readBits(9);
+			return new HuffNode(value,0,null,null);
+		}		
+	}
+	
+	public void readCompressedBits(HuffNode root, BitInputStream in, BitOutputStream out) {
+		   HuffNode current = root; 
+		   while (true) {
+		       int bits = in.readBits(1);
+		       if (bits == -1) {
+		           throw new HuffException("bad input, no PSEUDO_EOF");
+		       } else { 
+		    	   if (bits == 0) current = current.myLeft;
+		    	   else current = current.myRight;
+		           if (current.myLeft == null && current.myRight == null) {
+		               if (current.myValue == PSEUDO_EOF) 
+		                   break;   // out of loop
+		               else {
+		            	   out.writeBits(BITS_PER_WORD, current.myValue);
+		                   current = root; // start back after leaf
+		               }
+		           }
+		       }
+		   }		   
+	}
+	
+//    private String[] subtreespliter(String allbits) {
+//        String[] temp = allbits.split("");
+//        int myCountZero = 0;
+//        int myCountOne = 0;
+//        int s = 1; //s is the index of the array, 0 is ignored(preorder traversal)
+//        int[] lrsubtree = new int[2];
+//        String[] tempret = new String[2];
+//        while(s < temp.length) {
+//            if(temp[s].equals("0")) {
+//                myCountZero ++;
+//                s++;
+//            }
+//            if(temp[s].equals("1")){
+//                myCountOne ++;
+//                s += 10;
+//            }
+//            if(myCountOne - 1 == myCountZero) {
+//                break;
+//            }
+//        }
+//        tempret[0] = allbits.substring(1, s);
+//        tempret[1] = allbits.substring(s);
+//        return tempret;
+//    }
+	
+	
+	
+	
 }
