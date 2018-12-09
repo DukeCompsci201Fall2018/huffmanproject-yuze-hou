@@ -68,7 +68,7 @@ public class HuffProcessor {
 	private void writeCompressBits(String[] codings, BitInputStream in, BitOutputStream out) {
 		while(true) {
 		
-		int a = in.readBits(8);
+		int a = in.readBits(BITS_PER_WORD);
 		
 		if(a == -1) {
 			break;
@@ -79,6 +79,7 @@ public class HuffProcessor {
 		}
 		String lastcode = codings[PSEUDO_EOF];
 		out.writeBits(lastcode.length(), Integer.parseInt(lastcode,2));
+		return;
 	}
 	
 	private void writeHeader(HuffNode root, BitOutputStream out) {
@@ -88,7 +89,7 @@ public class HuffProcessor {
 				return;
 			}
 			out.writeBits(1, 1);
-			out.writeBits(BITS_PER_INT + 1, current.myValue);
+			out.writeBits(BITS_PER_WORD + 1, current.myValue);
 			return;
 		}
 		else {
@@ -126,31 +127,46 @@ public class HuffProcessor {
 	
 	private void codingHelper(HuffNode root, String path, String[] encodings) {
 		HuffNode toleaf = root;
-		if(root.myLeft == null && root.myRight == null) {
-			if(root.myValue == PSEUDO_EOF) {
+		if(toleaf.myLeft == null && toleaf.myRight == null) {
+			if(toleaf.myValue == PSEUDO_EOF) {
 				encodings[ALPH_SIZE] = path;	
 				return;
 			}				
-			encodings[root.myValue] = path;
+			encodings[toleaf.myValue] = path;
 			return;
-		}		
-			codingHelper(toleaf.myLeft, path += "0", encodings);
-			codingHelper(toleaf.myRight, path += "1", encodings);
+		}	
+		for(int i = 0; i < 2; i++){
+			HuffNode curr = root;
+			if(i == 0){
+				curr = curr.myLeft;
+				path = path + "0";
+				codingHelper(curr, path, encodings);
+			}else{
+				curr = curr.myRight;
+				path = path + "1";
+				codingHelper(curr, path, encodings);
+			}
+			path = path.substring(0, path.length() - 1);
+		}
+//			codingHelper(toleaf.myLeft, path += "0", encodings);
+//			codingHelper(toleaf.myRight, path += "1", encodings);
 	}
 	
 	private HuffNode makeTreeFromCounts(int[] count) {
-		PriorityQueue<HuffNode> pq = new PriorityQueue<>();
+		PriorityQueue<HuffNode> pq = new PriorityQueue<HuffNode>();
 		//loop every index such that freq[index] > 0
 		for(int i = 0; i < count.length; i++) {
-			if(count[i] > 0) 
+			if(count[i] > 0) {
 		    pq.add(new HuffNode(i, count[i] , null, null));
+			}
 		}
+		//pq.add(new HuffNode(PSEUDO_EOF, 1, null,null));
 
 		while (pq.size() > 1) {
 		    HuffNode left = pq.remove();
 		    HuffNode right = pq.remove();
 		    //here is a difference, which value should be put?
-		    HuffNode t = new HuffNode(-2, 
+		    HuffNode t = new HuffNode(-1, 
 		    		left.myWeight + right.myWeight, left, right);
 		    
 		    // create new HuffNode t with weight from
@@ -163,16 +179,19 @@ public class HuffProcessor {
 	}
 	
 	private int[] readForCounts(BitInputStream in) {
+		
 		int[] storage = new int[ALPH_SIZE + 1];
+		int read = 0;
 		//initialize
 		for(int i = 0; i < storage.length; i++) {
 			storage[i] = 0;
 		}
 		while(true) {
-			int read = in.readBits(BITS_PER_WORD);
+			read = in.readBits(BITS_PER_WORD);
+		
 			if(read == -1) break;
-			int index = read;
-			storage[index] += 1;
+			
+			storage[read] += 1;
 		}
 		storage[PSEUDO_EOF] = 1;
 		
